@@ -1,4 +1,5 @@
 var gravitational_constant = 10;
+var animationId;
 
 function Vector(x, y) {
   this.x = x;
@@ -98,15 +99,42 @@ function animate (ctx, planets) {
     planets[i].updatePosition();
     planets[i].draw(ctx);
   }
-  window.requestAnimationFrame(function() {animate(ctx, planets);});
+  animationId = window.requestAnimationFrame(function() {animate(ctx, planets);});
+}
+
+function startAnimation (ctx, num_planets) {
+  var planets = [];
+  for (var i = 0; i < num_planets; i++) {
+    var selector_prefix = "#planet" + i + "_";
+    console.log($(selector_prefix + "enabled").is(":checked"));
+    if ($(selector_prefix + "enabled").is(":checked")) {
+      var mass = parseFloat($(selector_prefix + "mass").val());
+      var radius = parseFloat($(selector_prefix + "radius").val());
+      var position = new Vector (parseFloat($(selector_prefix + "x").val()), parseFloat($(selector_prefix + "y").val()));
+      var velocity = new Vector (parseFloat($(selector_prefix + "vx").val()), parseFloat($(selector_prefix + "vy").val()));
+      var fixed = $(selector_prefix + "fixed").is(":checked");
+      planets.push(new Planet(i, mass, radius, position, velocity, fixed));
+      console.log(planets);
+    }
+  }
+  animationId = window.requestAnimationFrame(function() {animate(ctx, planets);});
+  $("#stop_animation").click(function() {
+    $("#stop_animation").hide();
+    $("#start_animation").show();
+    window.cancelAnimationFrame(animationId);
+  });
 }
 
 $(function() {
+  var num_planets = 5;
   var canvas = $("#canvas")[0];
   var ctx = canvas.getContext("2d");
   ctx.canvas.width = 1200;
   ctx.canvas.height = 700;
-  var earth = new Planet(0, 500, 20, new Vector(500,350), new Vector(0, 0), true);
-  var moon = new Planet(1, 10, 5, new Vector(500, 500), new Vector(6, 0), true);
-  window.requestAnimationFrame(function() {animate(ctx, [earth, moon]);});
+
+  $("#start_animation").click(function() {
+    $("#start_animation").hide();
+    $("#stop_animation").show();
+    startAnimation(ctx, num_planets);
+  });
 });
