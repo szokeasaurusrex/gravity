@@ -67,74 +67,81 @@ Planet.prototype.draw = function(ctx) {
   ctx.stroke();
 };
 
-Planet.prototype.updateAccel = function(ctx, planets) {
+Planet.prototype.updateVelocity = function(ctx, planets) {
   // planets is an array containing all other planets
-  this.accel = new Vector (0, 0);
+  var accel = new Vector (0, 0);
   if (this.fixed === false) {
     for (var i = 0; i < planets.length; i++) {
       if (this.id != planets[i].id) {
         var distance_vector = planets[i].position.add(this.position.scale(-1));
         var accel_magnitude = gravitational_constant * planets[i].mass / Math.pow(distance_vector.magnitude(), 2);
         var accel_change = distance_vector.unitize().scale(accel_magnitude);
-        this.accel = this.accel.add(accel_change);
-
-        var xdiff = this.position.add(planets[i].position.scale(-1));
-        if (xdiff.magnitude() <= this.radius + planets[i].radius && this.collided_planets.indexOf(planets[i].id) == -1) {
-          // collisions with other planets
-          var vdiff = this.velocity.add(planets[i].velocity.scale(-1));
-          var m1 = this.mass;
-          var m2 = planets[i].mass;
-          var accel_change = xdiff.scale(-2 * m2 / (m1 + m2) * vdiff.dot(xdiff) / Math.pow (xdiff.magnitude(), 2));
-          this.accel = this.accel.add(accel_change);
-          this.collided_planets.push(planets[i].id);
-        }
-        else if (xdiff.magnitude() >= this.radius + planets[i].radius && this.collided_planets.indexOf(planets[i].id) != -1){
-          var index = this.collided_planets.indexOf(planets[i].id);
-          this.collided_planets.splice(index, 1);
-        }
+        accel = accel.add(accel_change);
       }
     }
     if ((this.position.x < this.radius && this.velocity.x < 0) || (this.position.x > ctx.canvas.width - this.radius && this.velocity.x > 0)) {
       // collisions with left and right walls
-      this.accel.x -= 2 * this.velocity.x;
+      accel.x -= 2 * this.velocity.x;
     }
     if ((this.position.y < this.radius && this.velocity.y < 0) || (this.position.y > ctx.canvas.height - this.radius && this.velocity.y > 0)) {
       // collisions with top and bottom walls
-      this.accel.y -= 2 * this.velocity.y;
+      accel.y -= 2 * this.velocity.y;
+    }
+    this.velocity = this.velocity.add(accel);
+
+  }
+}
+
+
+Planet.prototype.updateCollisionAccel = function(planets) {
+  this.collision_accel = new Vector(0, 0);
+  for (var i = 0; i < planets.length; i++) {
+    if (this.id != planets[i].id) {
+      var xdiff = this.position.add(planets[i].position.scale(-1));
+      if (xdiff.magnitude() <= this.radius + planets[i].radius && this.collided_planets.indexOf(planets[i].id) == -1) {
+        // collisions with other planets
+        var vdiff = this.velocity.add(planets[i].velocity.scale(-1));
+        var m1 = this.mass;
+        var m2 = planets[i].mass;
+        var accel_change = xdiff.scale(-2 * m2 / (m1 + m2) * vdiff.dot(xdiff) / Math.pow (xdiff.magnitude(), 2));
+        this.collision_accel = this.collision_accel.add(accel_change);
+        this.collided_planets.push(planets[i].id);
+      }
+      else if (xdiff.magnitude() >= this.radius + planets[i].radius && this.collided_planets.indexOf(planets[i].id) != -1){
+        var index = this.collided_planets.indexOf(planets[i].id);
+        this.collided_planets.splice(index, 1);
+      }
     }
   }
 }
 
+Planet.prototype.updateCollisionPosition = function (planets) {
+  this.velocity = this.velocity.add(this.collision_accel);
+  this.position = this.position.add(this.collision_accel);
+}
+
 Planet.prototype.updatePosition = function(planets) {
   if (this.fixed === false) {
-    this.velocity = this.velocity.add(this.accel);
     this.position = this.position.add(this.velocity);
-    this.position_shift = new Vector(0, 0);
-    for (var i = 0; i < planets.length; i++) {
-      // collision shifting
-      var xdiff = this.position.add(planets[i].position.scale(-1));
-      var distance = xdiff.magnitude() - (this.radius + planets[i].radius);
-      if (this.id != planets[i].id && distance <= 0) {
-        if (planets[i].fixed === true) {
-          this.position_shift = this.position_shift.add(xdiff.unitize().scale(-distance));
-        }
-        else {
-          this.position_shift = this.position_shift.add(xdiff.unitize().scale(-distance/2));
-        }
-      }
-    }
-    this.position = this.position.add(this.position_shift);
   }
 }
 
 function animate (ctx, planets) {
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   for (var i = 0; i < planets.length; i++) {
-    planets[i].updateAccel(ctx,planets);
+    planets[i].updateVelocity(ctx,planets);
   }
   for (var i = 0; i < planets.length; i++) {
     planets[i].updatePosition(planets);
+  }
+  for (var i = 0; i < planets.length; i++) {
+    planets[i].updateCollisionAccel(planets);
+  }
+
+  for (var i = 0; i < planets.length; i++) {
+    planets[i].updateCollisionPosition(planets);
     planets[i].draw(ctx);
+
   }
   animationId = window.requestAnimationFrame(function() {animate(ctx, planets);});
 }
@@ -143,7 +150,6 @@ function startAnimation (ctx, num_planets) {
   var planets = [];
   for (var i = 0; i < num_planets; i++) {
     var selector_prefix = "#planet" + i + "_";
-    console.log($(selector_prefix + "enabled").is(":checked"));
     if ($(selector_prefix + "enabled").is(":checked")) {
       var mass = parseFloat($(selector_prefix + "mass").val());
       var radius = parseFloat($(selector_prefix + "radius").val());
@@ -151,7 +157,6 @@ function startAnimation (ctx, num_planets) {
       var velocity = new Vector (parseFloat($(selector_prefix + "vx").val()), parseFloat($(selector_prefix + "vy").val()));
       var fixed = $(selector_prefix + "fixed").is(":checked");
       planets.push(new Planet(i, mass, radius, position, velocity, fixed));
-      console.log(planets);
     }
   }
   animationId = window.requestAnimationFrame(function() {animate(ctx, planets);});
