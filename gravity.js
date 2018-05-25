@@ -21,7 +21,6 @@ Vector.prototype.angle = function() {
 };
 
 Vector.prototype.add = function(vector2) {
-  // If sign == 1, then add, if sign == -1, subtract
   var x = this.x + vector2.x;
   var y = this.y + vector2.y;
   var resultant = new Vector(x, y);
@@ -43,12 +42,12 @@ Vector.prototype.dot = function(vector2) {
 Vector.prototype.setByMagnitudeDirection = function (magnitude, direction) {
   this.x = magnitude * Math.cos(direction);
   this.y = - magnitude * Math.sin(direction);
-}
+};
 
 Vector.prototype.unitize = function () {
   // returns vector with same direction with magnitude equal to one
   return this.scale(1 / this.magnitude());
-}
+};
 
 function Planet(id, mass, radius, position, velocity, fixed) {
   // mass and radius are scalars, position and velocity are vectors
@@ -90,7 +89,7 @@ Planet.prototype.updateVelocity = function(ctx, planets) {
     this.velocity = this.velocity.add(accel);
 
   }
-}
+};
 
 
 Planet.prototype.updateCollisionAccel = function(planets) {
@@ -113,18 +112,31 @@ Planet.prototype.updateCollisionAccel = function(planets) {
       }
     }
   }
-}
+};
 
-Planet.prototype.updateCollisionPosition = function (planets) {
+Planet.prototype.updateCollisionPosition = function () {
   this.velocity = this.velocity.add(this.collision_accel);
   this.position = this.position.add(this.collision_accel);
-}
+  this.collision_accel = 0;
+};
 
 Planet.prototype.updatePosition = function(planets) {
   if (this.fixed === false) {
     this.position = this.position.add(this.velocity);
   }
-}
+};
+
+Planet.prototype.energy = function (planets) {
+  var energy = 0;
+  for (var i = 0; i < planets.length; i++) {
+    if (this.id != planets[i].id) {
+      var distance_vector = planets[i].position.add(this.position.scale(-1));
+      energy -= gravitational_constant * planets[i].mass * this.mass / distance_vector.magnitude();
+    }
+  }
+  energy += 0.5 * this.mass * Math.pow(this.velocity.magnitude(), 2);
+  return energy;
+};
 
 function animate (ctx, planets) {
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -139,10 +151,16 @@ function animate (ctx, planets) {
   }
 
   for (var i = 0; i < planets.length; i++) {
-    planets[i].updateCollisionPosition(planets);
+    planets[i].updateCollisionPosition();
     planets[i].draw(ctx);
-
   }
+
+  // var energy = 0;
+  // for (var i = 0; i < planets.length; i++) {
+  //   energy += planets[i].energy(planets);
+  // }
+  // console.log(energy);
+
   animationId = window.requestAnimationFrame(function() {animate(ctx, planets);});
 }
 
